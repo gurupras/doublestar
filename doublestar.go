@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/colinmarc/hdfs"
+	"github.com/gurupras/go-easyfiles"
 )
 
 var ErrBadPattern = path.ErrBadPattern
@@ -180,7 +180,7 @@ func doMatching(patternComponents, nameComponents []string) (matched bool, err e
 //
 // Note: this is meant as a drop-in replacement for filepath.Glob().
 //
-func Glob(client *hdfs.Client, pattern string) (matches []string, err error) {
+func Glob(fs easyfiles.FileSystemInterface, pattern string) (matches []string, err error) {
 	patternComponents := splitPathOnSeparator(pattern, os.PathSeparator)
 	if len(patternComponents) == 0 {
 		return nil, nil
@@ -193,12 +193,12 @@ func Glob(client *hdfs.Client, pattern string) (matches []string, err error) {
 	// If the first pattern component is equal to the volume name, then the
 	// pattern is an absolute path.
 	if patternComponents[0] == volumeName {
-		return doGlob(client, fmt.Sprintf("%s%s", volumeName, string(os.PathSeparator)), patternComponents[1:], matches)
+		return doGlob(fs, fmt.Sprintf("%s%s", volumeName, string(os.PathSeparator)), patternComponents[1:], matches)
 	}
-	return doGlob(client, ".", patternComponents, matches)
+	return doGlob(fs, ".", patternComponents, matches)
 }
 
-func doGlob(client *hdfs.Client, basedir string, components, matches []string) (m []string, e error) {
+func doGlob(fs easyfiles.FileSystemInterface, basedir string, components, matches []string) (m []string, e error) {
 	m = matches
 	e = nil
 
@@ -216,7 +216,7 @@ func doGlob(client *hdfs.Client, basedir string, components, matches []string) (
 	}
 
 	// Stat will return an error if the file/directory doesn't exist
-	fi, err := client.Stat(basedir)
+	fi, err := fs.Stat(basedir)
 	if err != nil {
 		return
 	}
@@ -230,7 +230,7 @@ func doGlob(client *hdfs.Client, basedir string, components, matches []string) (
 	// otherwise, we need to check each item in the directory...
 	// first, if basedir is a symlink, follow it...
 	if fi.Mode()&os.ModeSymlink != 0 {
-		fi, err = client.Stat(basedir)
+		fi, err = fs.Stat(basedir)
 		if err != nil {
 			return
 		}
@@ -241,14 +241,14 @@ func doGlob(client *hdfs.Client, basedir string, components, matches []string) (
 		return
 	}
 
-	files, _ := client.ReadDir(basedir)
+	files, _ := fs.ReadDir(basedir)
 	lastComponent := patIdx+1 >= patLen
 	if components[patIdx] == "**" {
 		// if the current component is a doublestar, we'll try depth-first
 		for _, file := range files {
 			// if symlink, we may want to follow
 			if file.Mode()&os.ModeSymlink != 0 {
-				file, err = client.Stat(filepath.Join(basedir, file.Name()))
+				file, err = fs.Stat(filepath.Join(basedir, file.Name()))
 				if err != nil {
 					continue
 				}
@@ -258,7 +258,7 @@ func doGlob(client *hdfs.Client, basedir string, components, matches []string) (
 				if lastComponent {
 					m = append(m, filepath.Join(basedir, file.Name()))
 				}
-				m, e = doGlob(client, filepath.Join(basedir, file.Name()), components[patIdx:], m)
+				m, e = doGlob(fs, filepath.Join(basedir, file.Name()), components[patIdx:], m)
 			} else if lastComponent {
 				// if the pattern's last component is a doublestar, we match filenames, too
 				m = append(m, filepath.Join(basedir, file.Name()))
@@ -281,7 +281,7 @@ func doGlob(client *hdfs.Client, basedir string, components, matches []string) (
 			if lastComponent {
 				m = append(m, filepath.Join(basedir, file.Name()))
 			} else {
-				m, e = doGlob(client, filepath.Join(basedir, file.Name()), components[patIdx+1:], m)
+				m, e = doGlob(fs, filepath.Join(basedir, file.Name()), components[patIdx+1:], m)
 			}
 		}
 	}

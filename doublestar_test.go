@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/gurupras/go-easyfiles"
 )
 
 type MatchTest struct {
@@ -170,7 +172,7 @@ func testGlobWith(t *testing.T, idx int, tt MatchTest, basepath string) {
 
 	pattern := filepath.Join(basepath, "test", filepath.Join(tt.pattern...))
 	testPath := filepath.Join(basepath, "test", filepath.Join(tt.testPath...))
-	matches, err := Glob(pattern)
+	matches, err := Glob(easyfiles.LocalFS, pattern)
 	if inSlice(testPath, matches) != tt.shouldMatch {
 		if tt.shouldMatch {
 			t.Errorf("#%v. Glob(%#q) = %#v - doesn't contain %v, but should", idx, tt.pattern, matches, tt.testPath)
